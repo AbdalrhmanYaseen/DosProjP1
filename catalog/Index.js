@@ -6,8 +6,8 @@ const path = require('path');
 const cors = require("cors")
 const redis = require('redis');
 const util = require("util")
-
 const client = redis.createClient(6379,"redis");
+
 client.set = util.promisify(client.set);
 client.get = util.promisify(client.get);
 
