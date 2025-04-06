@@ -11,6 +11,7 @@ const client = redis.createClient(6379,"redis");
 client.set = util.promisify(client.set);
 client.get = util.promisify(client.get);
 
+
 client.on("error", (err) => {
     console.error(`Redis Error: ${err}`);
 });
