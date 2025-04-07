@@ -17,7 +17,7 @@ client.on("error", (err) => {
 });
 
 const app = express();
-const port = 3005;
+const port = 5000;
 
 app.use(express.json());
 app.use(cors())
@@ -84,6 +84,24 @@ app.post("/order", (req, res) => {
         })
     });
 });
+app.put('/update/:id', (req, res) => {
+    const itemId = req.params.id;
+    const { numberOfItems } = req.body;
+
+    db.run(
+        `UPDATE items SET numberOfItems = ? WHERE id = ?`,
+        [numberOfItems, itemId],
+        function (err) {
+            if (err) {
+                console.error(err.message);
+                return res.status(500).json({ status: 'error', message: 'Database update failed' });
+            }
+
+            res.status(200).json({ status: 'success', message: 'Item quantity updated' });
+        }
+    );
+});
+
 
 db.serialize(() => {
     db.run(

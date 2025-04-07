@@ -1,34 +1,39 @@
 const express = require('express');
-const sqlite3 = require('sqlite3').verbose();
 const axios = require('axios');
-const cors = require('cors');
 const app = express();
+const port = 4000;
 
-const port = 4005;
-
-app.use(cors());
 app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
 
-app.post('/purch', async (req, res) => {
-    const { id, orderCost } = req.body;
-    const order = { id, orderCost };
+const catalogURL = 'http://catalog:5000';
+
+app.post('/purchase/:id', async (req, res) => {
+    const itemId = req.params.id;
 
     try {
-        const response = await axios.post('http://catalog-server:3005/order', order);
-        console.log(response.data);
-        res.send({ message: 'Request sent to Catalog' });
-    } catch (err) {
-        console.error(err);
-        res.status(400).send({ error: err.message });
+        const infoRes = await axios.get(`${catalogURL}/info/${itemId}`);
+        const item = infoRes.data.item[0];
+
+        if (!item || item.numberOfItems <= 0) {
+            return res.status(400).json({ status: 'fail', message: 'Item out of stock' });
+        }
+
+        const updatedQuantity = item.numberOfItems - 1;
+        await axios.put(`${catalogURL}/update/${itemId}`, {
+            numberOfItems: updatedQuantity
+        });
+
+        return res.status(200).json({
+            status: 'success',
+            message: `Book with id ${itemId} purchased successfully`
+        });
+
+    } catch (error) {
+        console.error(error.message);
+        return res.status(500).json({ status: 'error', message: 'Purchase failed' });
     }
 });
 
-app.get('/test', (req, res) => {
-    res.send({ message: 'Arrive' });
-});
-
 app.listen(port, () => {
-    console.log(`Server is running on http://localhost:${port}`);
+    console.log(`Order service running on http://localhost:${port}`);
 });
-
