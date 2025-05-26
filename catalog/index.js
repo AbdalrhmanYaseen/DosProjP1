@@ -24,7 +24,7 @@ let orderPrice = 0;
 let numberIt;
 let test;
 let lastResult;
-let lastText;
+
 
 app.post("/order", (req, res) => {
     const order = req.body;
