@@ -14,4 +14,4 @@ COPY . .
 EXPOSE 4000
 EXPOSE 5000
 
-CMD ["concurrently", "node catalog/index.js", "node order/index.js"]
+CMD ["concurrently", "node src/catalog/index.js", "node src/order/index.js"]

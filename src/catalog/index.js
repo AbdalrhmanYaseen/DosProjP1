@@ -1,22 +1,39 @@
 const express = require('express');
 const sqlite3 = require('sqlite3').verbose();
 const redis = require('redis');
-const db = new sqlite3.Database('database.db', (err) => {
+const db = new sqlite3.Database('src/catalog/database.db', (err) => {
     if (err) {
         console.error('Error connecting to database:', err.message);
     } else {
-        console.log('Connected to SQLite database.');
+        console.log('Connected to SQLite database at src/catalog/database.db');
     }
 });
 const axios = require("axios")
 const path = require('path');
 const cors = require("cors")
-const util = require("util")
 
 
-const client = redis.createClient(6379,"redis");
-client.set = util.promisify(client.set);
-client.get = util.promisify(client.get);
+const client = redis.createClient({
+    url: 'redis://redis:6379'  
+});
+
+
+(async () => {
+    let retries = 5;
+    while (retries) {
+        try {
+            await client.connect();
+            console.log('Connected to Redis');
+            break;
+        } catch (err) {
+            console.error(`Redis connection error: ${err.message}`);
+            retries -= 1;
+            console.log(`Retries left: ${retries}`);
+    
+            await new Promise(resolve => setTimeout(resolve, 5000));
+        }
+    }
+})();
 
 client.on("error", (err) => {
     console.error(`Redis Error: ${err}`);
@@ -94,75 +111,132 @@ app.post("/order", (req, res) => {
 db.serialize(() => {
     db.run(
         `CREATE TABLE IF NOT EXISTS items (
-    id INTEGER PRIMARY KEY ,  
+    id INTEGER PRIMARY KEY ,
     bookTopic TEXT,
     numberOfItems INTEGER ,
-    bookCost INTEGER,  
+    bookCost INTEGER,
     bookTitle TEXT
   )`
     );});
 
 app.get('/search/:bookTopic', async (req, res) => {
     let bookTopic = req.params.bookTopic.trim();
-    console.log(bookTopic);
-    const cachedPost = await client.get(`${bookTopic}`)
-    console.log(cachedPost,"---")
-    if(cachedPost){
-        return res.json(JSON.parse(cachedPost))
-    }
-    db.serialize(() => {
-        db.all(`SELECT * FROM items WHERE bookTopic="${bookTopic}"`, (err, row) => {
-            if (err) {
-                console.log(err);
-                return;
-            }
-            res.send({ items: row });
-            for (i = 0; i < row.length; i++) {
-                console.log(
-                    row[i].id,
-                    row[i].numberOfItems,
-                    row[i].bookCost,
-                    row[i].bookTopic
-                );
+    console.log(`Searching for topic: ${bookTopic}`);
 
-            }
+    try {
+        const cachedPost = await client.get(`${bookTopic}`);
+        console.log('Cache result:', cachedPost ? 'HIT' : 'MISS');
 
-            client.set(`${bookTopic}`,JSON.stringify(row))
-            // console.log(row);
-            res.send({items:row});
+        if (cachedPost) {
+            return res.json(JSON.parse(cachedPost));
+        }
+
+        db.serialize(() => {
+           
+            db.all(`SELECT * FROM items WHERE bookTopic = ?`, [bookTopic], async (err, rows) => {
+                if (err) {
+                    console.error('Database error:', err);
+                    return res.status(500).json({ error: 'Database error' });
+                }
+
+                console.log(`Found ${rows.length} books for topic: ${bookTopic}`);
+
+          
+                for (let i = 0; i < rows.length; i++) {
+                    console.log(
+                        `Book ${i + 1}:`,
+                        `ID: ${rows[i].id},`,
+                        `Items: ${rows[i].numberOfItems},`,
+                        `Cost: ${rows[i].bookCost},`,
+                        `Title: ${rows[i].bookTitle}`
+                    );
+                }
+
+               //cache
+                await client.set(`${bookTopic}`, JSON.stringify({ items: rows }));
+
+                res.json({ items: rows });
+            });
         });
-    });
+    } catch (error) {
+        console.error('Redis error:', error);
+ 
+        db.all(`SELECT * FROM items WHERE bookTopic = ?`, [bookTopic], (err, rows) => {
+            if (err) {
+                console.error('Database error:', err);
+                return res.status(500).json({ error: 'Database error' });
+            }
+
+            console.log(`Found ${rows.length} books for topic: ${bookTopic} (no cache)`);
+            res.json({ items: rows });
+        });
+    }
 });
 
 app.get('/info/:id', async (req, res) => {
     let id = req.params.id;
-    console.log(id);
-    const cachedPost = await client.get(`${id}`)
-    // console.log(cachedPost)
-    /////////////////////////////
-    db.serialize(() => {
-        // i used serialize to solve of close data base for data displayed completely
-        db.all(`SELECT id,numberOfItems,bookCost FROM items WHERE id=${id}`,async (err, row) => {
-            if (err) {
-                console.log(err);
-                return;
-            }
-            if(cachedPost){
-                let temp = JSON.parse(cachedPost)
-                console.log(row[0].numberOfItems,"--")
-                console.log(temp.numberOfItems,"--")
-                if(row[0].numberOfItems == temp.numberOfItems)
-                    return res.json(JSON.parse(cachedPost))
-                else{
-                    client.del(`${id}`)
-                    return res.json({Message:"Invalidate"})
+    console.log(`Getting info for ID: ${id}`);
+
+    try {
+        const cachedPost = await client.get(`${id}`);
+
+        db.serialize(() => {
+         
+            db.all(`SELECT id, numberOfItems, bookCost, bookTitle FROM items WHERE id = ?`, [id], async (err, rows) => {
+                if (err) {
+                    console.error('Database error:', err);
+                    return res.status(500).json({ error: 'Database error' });
                 }
-            }
-            client.set(`${id}`,JSON.stringify(row[0]))
-            console.log(row);
-            res.json({item:row});
+
+              
+                if (rows.length === 0) {
+                    return res.status(404).json({ error: 'Book not found' });
+                }
+
+                const currentBook = rows[0];
+
+                // check cache
+                if (cachedPost) {
+                    try {
+                        let cachedBook = JSON.parse(cachedPost);
+                        console.log(`Current items: ${currentBook.numberOfItems}, Cached items: ${cachedBook.numberOfItems}`);
+
+                        // If inventory matches cache, return cached data
+                        if (currentBook.numberOfItems === cachedBook.numberOfItems) {
+                            return res.json({ item: cachedBook });
+                        } else {
+                            // Inventory changed, invalidate cache
+                            await client.del(`${id}`);
+                            console.log('Cache invalidated due to inventory change');
+                        }
+                    } catch (parseError) {
+                        console.error('Error parsing cached data:', parseError);
+                        await client.del(`${id}`);
+                    }
+                }
+
+                // cache the current data and return it
+                await client.set(`${id}`, JSON.stringify(currentBook));
+                console.log('Book info retrieved:', currentBook);
+                res.json({ item: currentBook });
+            });
         });
-    });
+    } catch (error) {
+        console.error('Redis error:', error);
+        // if redis fails still try to get data from database
+        db.all(`SELECT id, numberOfItems, bookCost, bookTitle FROM items WHERE id = ?`, [id], (err, rows) => {
+            if (err) {
+                console.error('Database error:', err);
+                return res.status(500).json({ error: 'Database error' });
+            }
+
+            if (rows.length === 0) {
+                return res.status(404).json({ error: 'Book not found' });
+            }
+
+            res.json({ item: rows[0] });
+        });
+    }
 });
 
 app.listen(port, () => {
