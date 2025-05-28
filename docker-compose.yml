@@ -1,0 +1,21 @@
+version: '3.8'
+
+services:
+
+  client:
+    image: client-service
+    build:
+      context: .
+    volumes:
+      - ./src/client-service:/app/src/client-service:ro
+    deploy:
+      replicas: 2
+      update_config:
+        parallelism: 2
+        delay: 10s
+      endpoint_mode: dnsrr
+
+
+
+  redis:
+    image: redis

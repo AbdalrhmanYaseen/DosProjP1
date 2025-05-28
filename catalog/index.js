@@ -1,5 +1,6 @@
 const express = require('express');
 const sqlite3 = require('sqlite3').verbose();
+const redis = require('redis');
 const db = new sqlite3.Database('database.db', (err) => {
     if (err) {
         console.error('Error connecting to database:', err.message);
@@ -13,6 +14,13 @@ const cors = require("cors")
 const util = require("util")
 
 
+const client = redis.createClient(6379,"redis");
+client.set = util.promisify(client.set);
+client.get = util.promisify(client.get);
+
+client.on("error", (err) => {
+    console.error(`Redis Error: ${err}`);
+});
 
 const app = express();
 const port = 5000;
@@ -83,8 +91,25 @@ app.post("/order", (req, res) => {
     });
 });
 
+db.serialize(() => {
+    db.run(
+        `CREATE TABLE IF NOT EXISTS items (
+    id INTEGER PRIMARY KEY ,  
+    bookTopic TEXT,
+    numberOfItems INTEGER ,
+    bookCost INTEGER,  
+    bookTitle TEXT
+  )`
+    );});
+
 app.get('/search/:bookTopic', async (req, res) => {
     let bookTopic = req.params.bookTopic.trim();
+    console.log(bookTopic);
+    const cachedPost = await client.get(`${bookTopic}`)
+    console.log(cachedPost,"---")
+    if(cachedPost){
+        return res.json(JSON.parse(cachedPost))
+    }
     db.serialize(() => {
         db.all(`SELECT * FROM items WHERE bookTopic="${bookTopic}"`, (err, row) => {
             if (err) {
@@ -92,19 +117,50 @@ app.get('/search/:bookTopic', async (req, res) => {
                 return;
             }
             res.send({ items: row });
+            for (i = 0; i < row.length; i++) {
+                console.log(
+                    row[i].id,
+                    row[i].numberOfItems,
+                    row[i].bookCost,
+                    row[i].bookTopic
+                );
+
+            }
+
+            client.set(`${bookTopic}`,JSON.stringify(row))
+            // console.log(row);
+            res.send({items:row});
         });
     });
 });
 
 app.get('/info/:id', async (req, res) => {
     let id = req.params.id;
+    console.log(id);
+    const cachedPost = await client.get(`${id}`)
+    // console.log(cachedPost)
+    /////////////////////////////
     db.serialize(() => {
-        db.all(`SELECT id,numberOfItems,bookCost FROM items WHERE id=${id}`, async (err, row) => {
+        // i used serialize to solve of close data base for data displayed completely
+        db.all(`SELECT id,numberOfItems,bookCost FROM items WHERE id=${id}`,async (err, row) => {
             if (err) {
                 console.log(err);
                 return;
             }
-            res.json({ item: row });
+            if(cachedPost){
+                let temp = JSON.parse(cachedPost)
+                console.log(row[0].numberOfItems,"--")
+                console.log(temp.numberOfItems,"--")
+                if(row[0].numberOfItems == temp.numberOfItems)
+                    return res.json(JSON.parse(cachedPost))
+                else{
+                    client.del(`${id}`)
+                    return res.json({Message:"Invalidate"})
+                }
+            }
+            client.set(`${id}`,JSON.stringify(row[0]))
+            console.log(row);
+            res.json({item:row});
         });
     });
 });
