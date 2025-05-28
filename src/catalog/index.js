@@ -1,15 +1,15 @@
 const express = require('express');
 const sqlite3 = require('sqlite3').verbose();
 const redis = require('redis');
-const db = new sqlite3.Database('src/catalog/database.db', (err) => {
+const path = require("path");
+const dbpath = path.resolve(__dirname, 'database.db');
+const db = new sqlite3.Database(dbpath, (err) => {
     if (err) {
         console.error('Error connecting to database:', err.message);
     } else {
         console.log('Connected to SQLite database at src/catalog/database.db');
     }
 });
-const axios = require("axios")
-const path = require('path');
 const cors = require("cors")
 
 
@@ -45,20 +45,12 @@ const port = 5000;
 app.use(express.json());
 app.use(cors())
 
-let orderPrice = 0;
-let numberIt;
-let test;
-let lastResult;
-let lastText;
 
 app.post("/order", (req, res) => {
-    const order = req.body;
     const searchId = req.body.id;
     const orderCost = req.body.orderCost;
-    console.log("Reached the catalog");
-    console.log(searchId);
     db.all(`SELECT * FROM items WHERE id = ?`, [searchId], (err, row) => {
-
+        console.log(row);
         if (err) {
             console.error(err.message);
             res.send({ result: { status: "fail", message: "Database error!" } });
@@ -77,29 +69,34 @@ app.post("/order", (req, res) => {
         console.log("Order Cost:", orderCost);
 
         if (orderCost >= orderPrice) {
+            console.log(orderCost);
             let newNumberOfItems = numberOfItems - 1;
 
             db.run(`UPDATE items SET numberOfItems = ? WHERE id = ?`, [newNumberOfItems, searchId], function (err) {
+                console.log("db updated");
                 if (err) {
                     console.error("Error updating record:", err.message);
                     res.send({ result: { status: "fail", message: "Database update failed!" } });
                     return;
                 }
 
-                db.all(`SELECT * FROM items WHERE id = ?`, [searchId], (err, updatedRow) => {
+                db.all(`SELECT * FROM items WHERE id = ?`, [searchId], async (err, updatedRow) => {
                     if (err) {
                         console.error(err.message);
-                        res.send({ result: { status: "fail", message: "Database error after update!" } });
+                        res.send({result: {status: "fail", message: "Database error after update!"}});
                         return;
                     }
 
                     if (updatedRow.length === 0) {
-                        res.send({ result: { status: "fail", message: "Failed to retrieve updated data!" } });
+                        res.send({result: {status: "fail", message: "Failed to retrieve updated data!"}});
                         return;
                     }
 
                     let lastText = `Bought book ${updatedRow[0].bookTitle}`;
-                    res.send({ result: { status: "success", message: lastText } });
+                    await client.del(`${searchId}`);
+                    await client.del(`${updatedRow[0].bookTopic}`);
+
+                    res.send({result: {status: "success", message: lastText}});
                 });
             });
         } else {

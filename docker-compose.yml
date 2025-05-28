@@ -7,8 +7,11 @@ services:
       - "4000:4000"
       - "5000:5000"
     volumes:
+      - ./src/catalog/index.js:/app/src/catalog/index.js
+      - ./src/order:/app/src/order
+      - ./src/client-service:/app/src/client-service
       - ./src/client-service:/app/src/client-service:ro
-      - database-data:/app/src/catalog
+      - ./src/catalog/database.db:/app/src/catalog/database.db  # ✅ تعديل هنا
     depends_on:
       - redis
 
@@ -21,4 +24,3 @@ services:
 
 volumes:
   redis-data:
-  database-data:
