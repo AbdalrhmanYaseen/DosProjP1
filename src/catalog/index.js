@@ -14,7 +14,7 @@ const cors = require("cors")
 
 
 const client = redis.createClient({
-    url: 'redis://redis:6379'  
+    url: 'redis://redis:6379'
 });
 
 
@@ -29,7 +29,7 @@ const client = redis.createClient({
             console.error(`Redis connection error: ${err.message}`);
             retries -= 1;
             console.log(`Retries left: ${retries}`);
-    
+
             await new Promise(resolve => setTimeout(resolve, 5000));
         }
     }
@@ -108,16 +108,6 @@ app.post("/order", (req, res) => {
     });
 });
 
-db.serialize(() => {
-    db.run(
-        `CREATE TABLE IF NOT EXISTS items (
-    id INTEGER PRIMARY KEY ,
-    bookTopic TEXT,
-    numberOfItems INTEGER ,
-    bookCost INTEGER,
-    bookTitle TEXT
-  )`
-    );});
 
 app.get('/search/:bookTopic', async (req, res) => {
     let bookTopic = req.params.bookTopic.trim();
@@ -132,7 +122,7 @@ app.get('/search/:bookTopic', async (req, res) => {
         }
 
         db.serialize(() => {
-           
+
             db.all(`SELECT * FROM items WHERE bookTopic = ?`, [bookTopic], async (err, rows) => {
                 if (err) {
                     console.error('Database error:', err);
@@ -141,7 +131,7 @@ app.get('/search/:bookTopic', async (req, res) => {
 
                 console.log(`Found ${rows.length} books for topic: ${bookTopic}`);
 
-          
+
                 for (let i = 0; i < rows.length; i++) {
                     console.log(
                         `Book ${i + 1}:`,
@@ -160,7 +150,7 @@ app.get('/search/:bookTopic', async (req, res) => {
         });
     } catch (error) {
         console.error('Redis error:', error);
- 
+
         db.all(`SELECT * FROM items WHERE bookTopic = ?`, [bookTopic], (err, rows) => {
             if (err) {
                 console.error('Database error:', err);
@@ -181,14 +171,14 @@ app.get('/info/:id', async (req, res) => {
         const cachedPost = await client.get(`${id}`);
 
         db.serialize(() => {
-         
+
             db.all(`SELECT id, numberOfItems, bookCost, bookTitle FROM items WHERE id = ?`, [id], async (err, rows) => {
                 if (err) {
                     console.error('Database error:', err);
                     return res.status(500).json({ error: 'Database error' });
                 }
 
-              
+
                 if (rows.length === 0) {
                     return res.status(404).json({ error: 'Book not found' });
                 }

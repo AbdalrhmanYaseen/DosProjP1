@@ -8,14 +8,9 @@ services:
       - "5000:5000"
     volumes:
       - ./src/client-service:/app/src/client-service:ro
+      - database-data:/app/src/catalog
     depends_on:
       - redis
-    deploy:
-      replicas: 2
-      update_config:
-        parallelism: 2
-        delay: 10s
-      endpoint_mode: dnsrr
 
   redis:
     image: redis:latest
@@ -26,3 +21,4 @@ services:
 
 volumes:
   redis-data:
+  database-data:
