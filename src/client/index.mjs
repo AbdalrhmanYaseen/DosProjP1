@@ -2,7 +2,9 @@
 import { Command } from 'commander';
 import inquirer from 'inquirer';
 import fs from 'fs';
-import axios from "axios"
+import axios from "axios";
+import express from 'express';
+import cors from 'cors';
 
 
   const program = new Command();
@@ -104,4 +106,145 @@ import axios from "axios"
         });
     });
 
+// Check if we should run CLI or web server
+if (process.argv.length > 2) {
+  // CLI mode - parse arguments
   program.parse();
+} else {
+  // Web server mode - no CLI arguments provided
+  console.log('Starting web server mode...');
+
+  // Web Server for Client Interface
+const app = express();
+app.use(cors());
+app.use(express.json());
+app.use(express.static('public'));
+
+// Serve a simple HTML interface
+app.get('/', (req, res) => {
+  res.send(`
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>DOS Project Client</title>
+        <style>
+            body { font-family: Arial, sans-serif; margin: 40px; }
+            .container { max-width: 800px; margin: 0 auto; }
+            .section { margin: 20px 0; padding: 20px; border: 1px solid #ddd; border-radius: 5px; }
+            input, button { padding: 10px; margin: 5px; }
+            button { background-color: #007bff; color: white; border: none; border-radius: 3px; cursor: pointer; }
+            button:hover { background-color: #0056b3; }
+            .result { margin-top: 10px; padding: 10px; background-color: #f8f9fa; border-radius: 3px; }
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <h1>DOS Project Client Interface</h1>
+
+            <div class="section">
+                <h3>Search Books by Topic</h3>
+                <input type="text" id="searchTopic" placeholder="Enter book topic">
+                <button onclick="searchBooks()">Search</button>
+                <div id="searchResult" class="result"></div>
+            </div>
+
+            <div class="section">
+                <h3>Get Book Info by ID</h3>
+                <input type="number" id="bookId" placeholder="Enter book ID">
+                <button onclick="getBookInfo()">Get Info</button>
+                <div id="infoResult" class="result"></div>
+            </div>
+
+            <div class="section">
+                <h3>Purchase Book</h3>
+                <input type="number" id="purchaseId" placeholder="Enter book ID">
+                <input type="number" id="orderCost" placeholder="Enter amount to pay">
+                <button onclick="purchaseBook()">Purchase</button>
+                <div id="purchaseResult" class="result"></div>
+            </div>
+        </div>
+
+        <script>
+            async function searchBooks() {
+                const topic = document.getElementById('searchTopic').value;
+                const resultDiv = document.getElementById('searchResult');
+
+                try {
+                    const response = await fetch(\`/api/search/\${topic}\`);
+                    const data = await response.json();
+                    resultDiv.innerHTML = '<pre>' + JSON.stringify(data, null, 2) + '</pre>';
+                } catch (error) {
+                    resultDiv.innerHTML = 'Error: ' + error.message;
+                }
+            }
+
+            async function getBookInfo() {
+                const id = document.getElementById('bookId').value;
+                const resultDiv = document.getElementById('infoResult');
+
+                try {
+                    const response = await fetch(\`/api/info/\${id}\`);
+                    const data = await response.json();
+                    resultDiv.innerHTML = '<pre>' + JSON.stringify(data, null, 2) + '</pre>';
+                } catch (error) {
+                    resultDiv.innerHTML = 'Error: ' + error.message;
+                }
+            }
+
+            async function purchaseBook() {
+                const id = document.getElementById('purchaseId').value;
+                const orderCost = document.getElementById('orderCost').value;
+                const resultDiv = document.getElementById('purchaseResult');
+
+                try {
+                    const response = await fetch('/api/purchase', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ id: parseInt(id), orderCost: parseFloat(orderCost) })
+                    });
+                    const data = await response.json();
+                    resultDiv.innerHTML = '<pre>' + JSON.stringify(data, null, 2) + '</pre>';
+                } catch (error) {
+                    resultDiv.innerHTML = 'Error: ' + error.message;
+                }
+            }
+        </script>
+    </body>
+    </html>
+  `);
+});
+
+// API endpoints that proxy to the backend services
+app.get('/api/search/:topic', async (req, res) => {
+  try {
+    const result = await axios.get(`http://nginx/catalog-server/search/${req.params.topic}`);
+    res.json(result.data);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get('/api/info/:id', async (req, res) => {
+  try {
+    const result = await axios.get(`http://nginx/catalog-server/info/${req.params.id}`);
+    res.json(result.data);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/purchase', async (req, res) => {
+  try {
+    const result = await axios.post('http://nginx/order-server/purchase', req.body);
+    res.json(result.data);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+const PORT = process.env.PORT || 3007;
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`Client web server running on http://0.0.0.0:${PORT}`);
+});
+
+}
