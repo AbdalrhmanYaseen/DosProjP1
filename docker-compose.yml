@@ -4,33 +4,44 @@ services:
   client:
     build:
       context: .
+      target: client-service
+    volumes:
+      - ./src/client:/app/src/client:ro
     container_name: client
-    command: ["tail", "-f", "/dev/null"]
+    ports:
+      - "3007:3007"
+    expose:
+      - "3007"
     depends_on:
       - redis
-      - nginx
 
   catalog-server:
     build:
       context: .
+      target: catalog-service
     container_name: catalog-server
     ports:
-      - "3005:3000"
+      - "3005:5000"
     expose:
-      - "3000"
+      - "5000"
     volumes:
-      - ./src/catalog/database.db:/app/src/catalog/database.db
+      - ./src/catalog:/app/src/catalog
+      - ./src/nginx:/app/src/nginx:ro
     depends_on:
       - redis
 
   order-server:
     build:
       context: .
+      target: order-service
+    volumes:
+      - ./src/order:/app/src/order:ro
+      - ./src/nginx:/app/src/nginx:ro
     container_name: order-server
     ports:
-      - "3006:3000"
+      - "3006:4000"
     expose:
-      - "3000"
+      - "4000"
     depends_on:
       - redis
 
@@ -50,3 +61,4 @@ services:
     depends_on:
       - catalog-server
       - order-server
+      - client
