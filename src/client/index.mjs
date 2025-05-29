@@ -32,7 +32,7 @@ import axios from "axios"
     message: 'Enter amount of money to pay:  ',
   },
 ]
-  
+
   program
     .command('search-book-title')
     .alias('s')
@@ -42,7 +42,7 @@ import axios from "axios"
         .prompt(questionSearch)
         .then(async (answers) => {
           try {
-            const result = await axios.get(`http://localhost:8083/catalog-server/search/${answers.bookTitle}`);
+            const result = await axios.get(`http://nginx/catalog-server/search/${answers.bookTitle}`);
             console.log('Response Data:', result.data);
           } catch (error) {
             console.error('Error during request:', error.message);
@@ -51,13 +51,13 @@ import axios from "axios"
         })
         .catch((error) => {
           if (error.isTtyError) {
-           
+
           } else {
-          
+
           }
         });
     });
-  
+
     program
     .command('info-book-item-number')
     .alias('i')
@@ -67,7 +67,7 @@ import axios from "axios"
         .prompt(questionInfo)
         .then(async (answers) => {
           try {
-            const result = await axios.get(`http://localhost:8083/catalog-server/info/${answers.itemNumber}`);
+            const result = await axios.get(`http://nginx/catalog-server/info/${answers.itemNumber}`);
             console.log('Response Data:', result.data);
           } catch (error) {
             console.error('Error during request:', error.message);
@@ -79,7 +79,7 @@ import axios from "axios"
           }
         });
     });
-    
+
     program
     .command('purchase-book-by-item-number')
     .alias('p')
@@ -91,7 +91,7 @@ import axios from "axios"
           // console.log(answers)
           // console.log(answers.purchase)
             try {
-              const result = await axios.post(`http://localhost:8083/order-server/purch`,{id:answers.itemNumber,orderCost:answers.money})
+              const result = await axios.post(`http://nginx/order-server/purchase`,{id:answers.itemNumber,orderCost:answers.money})
               console.log('Response Data:', result.data);
             } catch (error) {
               console.error('Error during request:', error.message);
@@ -103,5 +103,5 @@ import axios from "axios"
           }
         });
     });
-  
+
   program.parse();
