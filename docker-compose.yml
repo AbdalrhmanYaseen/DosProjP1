@@ -5,12 +5,10 @@ services:
     build:
       context: .
     container_name: client
-    ports:
-      - "3007:3000"
-    expose:
-      - "3000"
+    command: ["tail", "-f", "/dev/null"]
     depends_on:
       - redis
+      - nginx
 
   catalog-server:
     build:
@@ -20,6 +18,8 @@ services:
       - "3005:3000"
     expose:
       - "3000"
+    volumes:
+      - ./src/catalog/database.db:/app/src/catalog/database.db
     depends_on:
       - redis
 
@@ -48,7 +48,5 @@ services:
     volumes:
       - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
     depends_on:
-      - client
       - catalog-server
       - order-server
-      - redis

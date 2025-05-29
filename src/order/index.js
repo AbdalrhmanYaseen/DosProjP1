@@ -12,7 +12,7 @@ app.post("/purchase",async (req,res)=>{
         "orderCost":req.body.orderCost
     };
     try{
-        const response = await axios.post(`http://localhost:5000/order`,order);
+        const response = await axios.post(`http://catalog-server:5000/order`,order);
         console.log(response.data)
 
         res.send({message:"Send Request To Catalog"})
