@@ -1,0 +1,50 @@
+# Development override for docker-compose.yml
+# This file provides development-specific configurations
+# Use: docker-compose up (automatically uses override)
+
+version: "3.9"
+
+services:
+  client:
+    # Override for development - expose port and use single replica
+    container_name: client-dev
+    ports:
+      - "3007:3007"
+    deploy:
+      replicas: 1
+    volumes:
+      - ./src/client:/app/src/client:rw  # Read-write for development
+
+  catalog-server:
+    # Override for development - expose port and use single replica
+    container_name: catalog-server-dev
+    ports:
+      - "3005:5000"
+    deploy:
+      replicas: 1
+    volumes:
+      - ./src/catalog:/app/src/catalog:rw  # Read-write for development
+
+  order-server:
+    # Override for development - expose port and use single replica
+    container_name: order-server-dev
+    ports:
+      - "3006:4000"
+    deploy:
+      replicas: 1
+    volumes:
+      - ./src/order:/app/src/order:rw  # Read-write for development
+
+  redis:
+    # Override for development - expose port
+    container_name: redis-dev
+    ports:
+      - "6379:6379"
+
+  nginx:
+    # Override for development
+    container_name: nginx-dev
+    ports:
+      - "80:80"
+    deploy:
+      replicas: 1

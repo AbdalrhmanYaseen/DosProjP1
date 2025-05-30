@@ -226,6 +226,45 @@ app.get('/info/:id', async (req, res) => {
     }
 });
 
+// Health check endpoint for auto-scaling
+app.get('/health', (req, res) => {
+    // Check Redis connection
+    if (client.isOpen) {
+        res.status(200).json({
+            status: 'healthy',
+            service: 'catalog-server',
+            timestamp: new Date().toISOString(),
+            uptime: process.uptime(),
+            redis: 'connected'
+        });
+    } else {
+        res.status(503).json({
+            status: 'unhealthy',
+            service: 'catalog-server',
+            timestamp: new Date().toISOString(),
+            redis: 'disconnected'
+        });
+    }
+});
+
+// Metrics endpoint for monitoring and scaling decisions
+app.get('/metrics', (req, res) => {
+    const memUsage = process.memoryUsage();
+    res.json({
+        service: 'catalog-server',
+        timestamp: new Date().toISOString(),
+        uptime: process.uptime(),
+        memory: {
+            rss: memUsage.rss,
+            heapTotal: memUsage.heapTotal,
+            heapUsed: memUsage.heapUsed,
+            external: memUsage.external
+        },
+        cpu: process.cpuUsage(),
+        redis: client.isOpen ? 'connected' : 'disconnected'
+    });
+});
+
 app.listen(port, () => {
     console.log(`Server is running on http://localhost:${port}`);
 });

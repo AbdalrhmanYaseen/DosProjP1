@@ -242,6 +242,33 @@ app.post('/api/purchase', async (req, res) => {
   }
 });
 
+// Health check endpoint for auto-scaling
+app.get('/health', (req, res) => {
+  res.status(200).json({
+    status: 'healthy',
+    service: 'client',
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime()
+  });
+});
+
+// Metrics endpoint for monitoring and scaling decisions
+app.get('/metrics', (req, res) => {
+  const memUsage = process.memoryUsage();
+  res.json({
+    service: 'client',
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime(),
+    memory: {
+      rss: memUsage.rss,
+      heapTotal: memUsage.heapTotal,
+      heapUsed: memUsage.heapUsed,
+      external: memUsage.external
+    },
+    cpu: process.cpuUsage()
+  });
+});
+
 const PORT = process.env.PORT || 3007;
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`Client web server running on http://0.0.0.0:${PORT}`);
