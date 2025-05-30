@@ -2,17 +2,11 @@ version: "3.9"
 
 services:
   client:
-    build:
-      context: .
-      target: client-service
-    volumes:
-      - ./src/client:/app/src/client:ro
-    ports:
-      - "3007:3007"
+    image: dos-project:client
+    networks:
+      - app-network
     expose:
       - "3007"
-    depends_on:
-      - redis
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3007/health"]
       interval: 30s
@@ -28,18 +22,23 @@ services:
         reservations:
           cpus: '0.25'
           memory: 256M
+      update_config:
+        parallelism: 1
+        delay: 10s
+        failure_action: rollback
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
 
   catalog-server:
-    build:
-      context: .
-      target: catalog-service
+    image: dos-project:catalog
+    networks:
+      - app-network
     expose:
       - "5000"
     volumes:
-      - ./src/catalog:/app/src/catalog
-      - ./src/nginx:/app/src/nginx:ro
-    depends_on:
-      - redis
+      - catalog-data:/app/src/catalog
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
       interval: 30s
@@ -47,7 +46,14 @@ services:
       retries: 3
       start_period: 40s
     deploy:
-      replicas: 2
+      replicas: 3
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
       update_config:
         parallelism: 1
         delay: 10s
@@ -57,25 +63,13 @@ services:
         condition: on-failure
         delay: 5s
         max_attempts: 3
-      resources:
-        limits:
-          cpus: '1.0'
-          memory: 1G
-        reservations:
-          cpus: '0.5'
-          memory: 512M
 
   order-server:
-    build:
-      context: .
-      target: order-service
-    volumes:
-      - ./src/order:/app/src/order:ro
-      - ./src/nginx:/app/src/nginx:ro
+    image: dos-project:order
+    networks:
+      - app-network
     expose:
       - "4000"
-    depends_on:
-      - redis
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:4000/health"]
       interval: 30s
@@ -83,7 +77,14 @@ services:
       retries: 3
       start_period: 40s
     deploy:
-      replicas: 2
+      replicas: 3
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
       update_config:
         parallelism: 1
         delay: 10s
@@ -93,18 +94,13 @@ services:
         condition: on-failure
         delay: 5s
         max_attempts: 3
-      resources:
-        limits:
-          cpus: '1.0'
-          memory: 1G
-        reservations:
-          cpus: '0.5'
-          memory: 512M
 
   redis:
     image: redis:latest
-    ports:
-      - "6379:6379"
+    networks:
+      - app-network
+    volumes:
+      - redis-data:/data
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 30s
@@ -119,24 +115,24 @@ services:
         reservations:
           cpus: '0.25'
           memory: 256M
+      restart_policy:
+        condition: on-failure
 
   nginx:
     image: nginx:latest
+    networks:
+      - app-network
     ports:
       - "80:80"
     volumes:
       - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
-    depends_on:
-      - catalog-server
-      - order-server
-      - client
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:80/health"]
       interval: 30s
       timeout: 10s
       retries: 3
     deploy:
-      replicas: 1
+      replicas: 2
       resources:
         limits:
           cpus: '0.5'
@@ -144,3 +140,18 @@ services:
         reservations:
           cpus: '0.25'
           memory: 128M
+      update_config:
+        parallelism: 1
+        delay: 10s
+        failure_action: rollback
+
+networks:
+  app-network:
+    driver: overlay
+    attachable: true
+
+volumes:
+  catalog-data:
+    driver: local
+  redis-data:
+    driver: local

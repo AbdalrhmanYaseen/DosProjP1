@@ -22,6 +22,33 @@ app.post("/purchase",async (req,res)=>{
     }
 })
 
+// Health check endpoint for auto-scaling
+app.get('/health', (req, res) => {
+    res.status(200).json({
+        status: 'healthy',
+        service: 'order-server',
+        timestamp: new Date().toISOString(),
+        uptime: process.uptime()
+    });
+});
+
+// Metrics endpoint for monitoring and scaling decisions
+app.get('/metrics', (req, res) => {
+    const memUsage = process.memoryUsage();
+    res.json({
+        service: 'order-server',
+        timestamp: new Date().toISOString(),
+        uptime: process.uptime(),
+        memory: {
+            rss: memUsage.rss,
+            heapTotal: memUsage.heapTotal,
+            heapUsed: memUsage.heapUsed,
+            external: memUsage.external
+        },
+        cpu: process.cpuUsage()
+    });
+});
+
 app.listen(port, () => {
     console.log(`Order service running on http://localhost:${port}`);
 });
